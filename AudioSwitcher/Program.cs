@@ -68,6 +68,9 @@ namespace AudioSwitcher
         public SysTrayApp()
         {
             qDevices = Settings.Default.ChoosedDevices ?? new List<int>();
+
+
+
             // Create a simple tray menu
             trayMenu = new ContextMenu();
 
@@ -81,7 +84,7 @@ namespace AudioSwitcher
             trayIcon.Visible = true;
 
             // Count sound-devices
-            foreach (var tuple in GetDevices())
+            foreach (var tuple in GetAudioDevices())
             {
                 deviceCount += 1;
             }
@@ -91,6 +94,7 @@ namespace AudioSwitcher
 
             // Register MEH on trayicon leftclick
             trayIcon.MouseUp += new MouseEventHandler(TrayIcon_LeftClick);
+            //trayIcon.MouseClick += new MouseEventHandler(TrayIcon_LeftClick);
         }
 
         #region Program security: EndPointController.exe validation
@@ -130,9 +134,9 @@ namespace AudioSwitcher
             {
                 var cur_id = nextId();
                 SelectDevice(cur_id);
-                foreach (var tuple in GetDevices().Where(tuple => cur_id == tuple.Item1))
+                foreach (var audioDevice in GetAudioDevices().Where(audioDevice => cur_id == audioDevice.DeviceId))
                 {
-                    trayIcon.Text = Resources.STATUS_PLAYING + " " + tuple.Item2;
+                    trayIcon.Text = Resources.STATUS_PLAYING + " " + audioDevice.DeviceName;
                     break;
                 }
             }
@@ -156,11 +160,13 @@ namespace AudioSwitcher
             trayMenu.MenuItems.Clear();
 
             // All all active devices
-            foreach (var tuple in GetDevices())
+            foreach (var audioDevice in GetAudioDevices())
             {
-                var id = tuple.Item1;
-                var deviceName = tuple.Item2;
-                var isInUse = qDevices.Contains(id);
+                var id = audioDevice.DeviceId;
+                var deviceName = audioDevice.DeviceName;
+                var isInUse = audioDevice.IsInUse; //qDevices.Contains(id);
+                if (isInUse)
+                    currentDeviceId = id;
 
                 var item = new MenuItem { Checked = isInUse, Text = deviceName + " (" + id + ")" };
                 item.Click += (s, a) => AddDeviceToList(id);
@@ -168,11 +174,24 @@ namespace AudioSwitcher
                 trayMenu.MenuItems.Add(item);
             }
 
+            trayMenu.MenuItems.Add("-");
+            var refreshItem = new MenuItem() { Text = Resources.LABEL_REFRESH_DEVICE_LIST};
+            refreshItem.Click += RefreshItem_Click;
+            trayMenu.MenuItems.Add(refreshItem);
+
             // Add an exit button
             var exitItem = new MenuItem { Text = Resources.LABEL_EXIT };
             exitItem.Click += OnExit;
             trayMenu.MenuItems.Add("-");
             trayMenu.MenuItems.Add(exitItem);
+        }
+
+        private void RefreshItem_Click(object sender, EventArgs e)
+        {
+            GetAudioDevices();
+
+            Settings.Default.ChoosedDevices = qDevices;
+            Settings.Default.Save();
         }
 
         private static void AddDeviceToList(int id)
@@ -185,17 +204,14 @@ namespace AudioSwitcher
 
         #region EndPointController.exe interaction
 
-        private static IEnumerable<Tuple<int, string, bool>> GetDevices()
+        private static IEnumerable<AudioDevice> GetAudioDevices()
         {
-            var devices = new List<Tuple<int, string, bool>>();
+            var devices = new List<AudioDevice>();
 
             if (!System.IO.File.Exists(controllerExePath) || !HasCorrectHash(controllerExePath))
             {
                 MessageBox.Show(Resources.ERROR_CONTROLLER_CHANGED + "\n" + Resources.MESSAGE_APPLICATION_WILL_BE_CLOSED,
                     Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
-
-                Settings.Default.ChoosedDevices = qDevices;
-                Settings.Default.Save();
 
                 Application.Exit();
             }
@@ -216,11 +232,24 @@ namespace AudioSwitcher
                 p.WaitForExit();
                 var stdout = p.StandardOutput.ReadToEnd().Trim();
 
+                Settings.Default.SavedDevices = stdout;
+                Settings.Default.Save();
+
                 foreach (var line in stdout.Split('\n'))
                 {
                     var elems = line.Trim().Split('|');
-                    var deviceInfo = new Tuple<int, string, bool>(int.Parse(elems[0]), elems[1], elems[3].Equals("1"));
-                    devices.Add(deviceInfo);
+
+                    if (elems[1] != "DELL U2713HM (Intel(R) Display Audio)") // just hard-coding for now
+                    {
+                        var deviceInfo = new AudioDevice()
+                        {
+                            DeviceId = int.Parse(elems[0]),
+                            DeviceName = elems[1],
+                            IsInUse = elems[3].Equals("1"),
+                            IsSelected = true // default to true - you probably want this app because you're wanting to switch between devices...
+                        };
+                        devices.Add(deviceInfo);
+                    }
                 }
             }
 

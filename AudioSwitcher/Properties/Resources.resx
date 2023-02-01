@@ -132,6 +132,9 @@
   <data name="LABEL_EXIT" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="LABEL_REFRESH_DEVICE_LIST" xml:space="preserve">
+    <value>Refresh List</value>
+  </data>
   <data name="MESSAGE_APPLICATION_WILL_BE_CLOSED" xml:space="preserve">
     <value>Application will be closed.</value>
   </data>
