@@ -67,9 +67,8 @@ namespace AudioSwitcher
 
         public SysTrayApp()
         {
-            qDevices = Settings.Default.ChoosedDevices ?? new List<int>();
-
-
+            //qDevices = Settings.Default.ChoosedDevices ?? new List<int>();
+            qDevices = new List<int>();
 
             // Create a simple tray menu
             trayMenu = new ContextMenu();
@@ -87,6 +86,7 @@ namespace AudioSwitcher
             foreach (var tuple in GetAudioDevices())
             {
                 deviceCount += 1;
+                qDevices.Add(tuple.DeviceId);
             }
 
             // Populate device list when menu is opened
@@ -239,7 +239,7 @@ namespace AudioSwitcher
                 {
                     var elems = line.Trim().Split('|');
 
-                    if (elems[1] != "DELL U2713HM (Intel(R) Display Audio)") // just hard-coding for now
+                    if (elems[1].StartsWith("DELL U2713HM") == false) // just hard-coding for now
                     {
                         var deviceInfo = new AudioDevice()
                         {
